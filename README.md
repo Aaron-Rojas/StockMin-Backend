@@ -1,65 +1,89 @@
-# StockMin - Backend API 📦
+# StockMin - API REST Backend
 
-Servidor de API REST desarrollado para el sistema de control de stock y lectura de códigos de barras de **StockMin**. Este backend sirve como el núcleo de lógica de negocio y persistencia de datos para la aplicación móvil desarrollada en React Native.
+![Node.js](https://img.shields.io/badge/Node.js-v20-339933?logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-v5-000000?logo=express&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-v16-4169E1?logo=postgresql&logoColor=white)
+![Prisma ORM](https://img.shields.io/badge/Prisma-v7-2D3748?logo=prisma&logoColor=white)
+![Jest](https://img.shields.io/badge/Jest-v30-C21325?logo=jest&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-alpine-2496ED?logo=docker&logoColor=white)
+![Render](https://img.shields.io/badge/Render-deploy-46E3B7?logo=render&logoColor=white)
+
+Esta aplicación corresponde a la API REST de **StockMin**, el núcleo de lógica de negocio y persistencia de datos diseñado para dar soporte a un sistema de control y auditoría de inventario para minimarkets. La solución técnica centraliza la gestión de accesos mediante autenticación criptográfica, implementa validaciones estrictas de payloads para blindar la capa de datos de PostgreSQL, y automatiza las transacciones de almacén (actualizaciones de stock) bajo un esquema atómico y consistente.
+
+Para examinar el historial del desarrollo paso a paso por fases y diagramas de arquitectura de base de datos en PlantUML, consulte el [ROADMAP.md]
+---
+
+## 🛠️ Stack Tecnológico
+
+- **Entorno de Ejecución**: Node.js (arquitectura basada en ES Modules nativos).
+- **Servidor Web**: Express.js (configuración modularizada en rutas y controladores).
+- **Base de Datos**: PostgreSQL (proveedor Neon DB en la nube).
+- **Mapeo Objeto-Relacional (ORM)**: Prisma ORM (versión 7.x, integrada con Driver Adapters de PostgreSQL para conectividad optimizada sin motores Rust locales).
+- **Seguridad**: JSON Web Tokens (JWT) para control de accesos de rol y cifrado de contraseñas mediante `bcryptjs`.
+- **Pruebas Automatizadas**: Jest y Supertest (suite de tests de integración con aislamiento de base de datos física mediante mockeos dinámicos).
+- **Contenedores**: Docker (construcción multi-etapa optimizada con base Node Alpine).
+- **Automatización**: GitHub Actions (tubería de CI/CD integrada).
 
 ---
 
-## 🧭 Índice del Proyecto
+## 🚀 Despliegue y CI/CD
 
-Para conocer el estado actual, la planificación del desarrollo y los detalles del diseño del sistema, consulta los siguientes enlaces:
-
-- 🛣️ **[Plan de Ruta de Desarrollo (ROADMAP.md)](./ROADMAP.md)**: Detalla el desarrollo paso a paso del backend desde su inicialización hasta su despliegue seguro en la nube.
-- 📐 **[Modelado de Base de Datos Relacional (docs/entidades.puml)](./docs/entidades.puml)**: Código PlantUML con la definición del modelo de datos de PostgreSQL para `User`, `Product` e `InventoryMovement`.
+- **URL de Producción**: [https://stockmin-backend.onrender.com](https://stockmin-backend.onrender.com)
+- **Integración y Despliegue Continuo**: Al hacer un `push` a la rama `deploy` en GitHub, se dispara una tubería automatizada que realiza el checkout del código, monta Node.js, descarga e instala las dependencias de desarrollo, compila el cliente Prisma, ejecuta la suite de tests unitarios, y gatilla un deploy webhook en Render para reconstruir el contenedor Docker en producción únicamente si todas las verificaciones son exitosas.
 
 ---
 
-## 🛠️ Requisitos e Inicialización del Entorno
+## 🔑 Funcionalidades y Endpoints
 
-### 1. Requisitos Previos
-Asegúrate de contar con lo siguiente instalado localmente:
-- **Node.js** (v18 o superior recomendado)
-- **PostgreSQL** (base de datos relacional activa)
+🔐 **Autenticación**: `POST /api/auth/login`
+- Validación de credenciales de usuario (email y password) y emisión de token JWT firmado con validez de 24 horas.
 
-### 2. Comandos de Instalación
-Una vez clonado el repositorio, instala todas las dependencias configuradas en el proyecto ejecutando:
+📦 **Catálogo (Listar)**: `GET /api/productos`
+- Recuperación del catálogo completo de productos con formateo decimal de precios a string para evitar imprecisiones aritméticas flotantes. Protegido por JWT.
+
+📦 **Catálogo (Buscar Código)**: `GET /api/productos/barcode/:barcode`
+- Búsqueda unitaria por código de barras para la lectura rápida mediante la cámara de la aplicación móvil. Protegido por JWT.
+
+📦 **Catálogo (Crear)**: `POST /api/productos`
+- Registro de un nuevo producto validando unicidad de código de barras, longitud mínima de caracteres en nombre, consistencia decimal de precios y stock no negativo. Protegido por JWT.
+
+📦 **Catálogo (Actualizar)**: `PUT /api/productos/:id`
+- Modificación parcial o total de la información de catálogo controlando que no se generen duplicidades de códigos de barras existentes. Protegido por JWT.
+
+🔄 **Transacciones**: `POST /api/movimientos`
+- Registro de entradas (compras) o salidas (ventas/mermas) bajo una transacción atómica de base de datos (`prisma.$transaction`). Captura la identidad del usuario directamente del token JWT, exige proveedor para ingresos, valida disponibilidad de existencias para salidas y actualiza automáticamente el stock consolidado del producto. Protegido por JWT.
+
+📊 **Auditoría**: `GET /api/movimientos`
+- Historial agrupado cronológicamente por día relativo ("Hoy", "Ayer", o día de la semana) y mes, con suma consolidada de existencias transferidas diaria y formateo de hora AM/PM para reportería. Protegido por JWT.
+
+---
+
+## 💻 Instalación y Ejecución Local
+
+### 1. Clonar e Instalar Dependencias
 ```bash
 npm install
 ```
 
-### 3. Configuración del ORM Prisma y Base de Datos
-1. Configura tu cadena de conexión en el archivo `.env` creado en la raíz:
-   ```env
-   DATABASE_URL="postgresql://USUARIO:CONTRASENA@localhost:5432/stockmin?schema=public"
-   ```
-2. Ejecuta la migración inicial para sincronizar el esquema definido en `prisma/schema.prisma` con tu base de datos:
-   ```bash
-   npx prisma migrate dev --name init
-   ```
-3. (Opcional) Levanta la interfaz visual de administración de base de datos de Prisma:
-   ```bash
-   npm run db:studio
-   ```
+### 2. Configurar Variables de Entorno
+Crea un archivo `.env` en la raíz del proyecto y define los siguientes parámetros:
+```env
+DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/stockmin?schema=public"
+PORT=5000
+JWT_SECRET="clave_secreta_jwt"
+```
 
-### 4. Ejecución del Servidor en Desarrollo
-Para iniciar el servidor con recarga automática usando `nodemon`:
+### 3. Generar Modelos del ORM
+```bash
+npx prisma generate
+```
+
+### 4. Iniciar el Servidor en Desarrollo
 ```bash
 npm run dev
 ```
 
----
-
-## 💡 Buenas Prácticas para Escalabilidad Futura
-
-Con el fin de mantener un desarrollo ágil y escalable de cara a futuras iteraciones, se proponen las siguientes prácticas:
-
-1. **Diseño por Capas Claras (Separación de Conceptos)**:
-   Dividir el código fuente dentro de `src/` en capas bien de negocio y presentación:
-   - **Routes**: Exclusivo para la definición de endpoints y mapeo de verbos HTTP.
-   - **Controllers**: Manejo de peticiones (`req`), respuestas (`res`), validaciones de formato HTTP e inyección de datos de sesión.
-   - **Services**: Contenedor de la lógica de negocio y llamados directos a Prisma ORM. Aísla las reglas de negocio para facilitar pruebas unitarias.
-2. **Consistencia Transaccional (Stock y Movimientos)**:
-   Al registrar un movimiento de inventario en `POST /api/movimientos`, se debe usar una **transacción de base de datos** (`prisma.$transaction`) para asegurar que la inserción del registro del movimiento y la correspondiente actualización (incremento/decremento) de stock en la tabla de productos se ejecuten como una única unidad atómica. Si alguna de las dos falla (o si el stock es insuficiente), toda la operación debe revertirse (`rollback`).
-3. **Validación Estricta de Contrato**:
-   Utilizar bibliotecas como **Zod** para validar las entradas (ej: que el `proveedor` esté presente si el tipo de movimiento es `'entrada'`). Esto garantiza que el backend rechace peticiones malformadas en la capa de controladores antes de interactuar con la base de datos.
-4. **Manejo Centralizado de Excepciones**:
-   Implementar un middleware global que capture cualquier error asíncrono y devuelva respuestas estandarizadas (ej: `{ "error": "Mensaje descriptivo" }`) de acuerdo al contrato JSON.
+### 5. Ejecutar Suite de Pruebas
+```bash
+npm test
+```
