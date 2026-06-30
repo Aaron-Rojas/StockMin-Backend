@@ -10,7 +10,7 @@
 
 Esta aplicación corresponde a la API REST de **StockMin**, el núcleo de lógica de negocio y persistencia de datos diseñado para dar soporte a un sistema de control y auditoría de inventario para minimarkets. La solución técnica centraliza la gestión de accesos mediante autenticación criptográfica, implementa validaciones estrictas de payloads para blindar la capa de datos de PostgreSQL, y automatiza las transacciones de almacén (actualizaciones de stock) bajo un esquema atómico y consistente.
 
-Para examinar el historial del desarrollo paso a paso por fases y diagramas de arquitectura de base de datos en PlantUML, consulte el [ROADMAP.md] (./ROADMAP.md)
+Para examinar el historial del desarrollo paso a paso por fases y diagramas de arquitectura de base de datos en PlantUML, consulte el [ROADMAP.md](./ROADMAP.md).
 
 ---
 

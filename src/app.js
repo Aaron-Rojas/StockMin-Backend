@@ -1,12 +1,14 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import authRouter from './routes/auth.routes.js';
 import productRouter from './routes/product.routes.js';
 import movementRouter from './routes/movement.routes.js';
 
 const app = express();
 
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 
