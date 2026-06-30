@@ -1,0 +1,51 @@
+@startuml entidades
+' Configuración estética del diagrama ERD
+skinparam linetype ortho
+skinparam roundcorner 5
+skinparam class {
+  BackgroundColor #FFFFFF
+  ArrowColor #2563EB
+  BorderColor #1E3A8A
+  HeaderBackgroundColor #2563EB
+}
+
+entity "User (Empleados)" as user {
+  * id : VARCHAR(36) <<PK>>
+  --
+  * email : VARCHAR(191) <<unique>>
+  * password : VARCHAR(191) -- Hash Bcrypt
+  * name : VARCHAR(191)
+  * role : VARCHAR(50) -- 'admin' | 'employee'
+  * createdAt : TIMESTAMP
+  * updatedAt : TIMESTAMP
+}
+
+entity "Product (Catálogo)" as product {
+  * id : VARCHAR(36) <<PK>>
+  --
+  * name : VARCHAR(191)
+  * price : DECIMAL(10, 2) -- Precisión fija de dinero
+  * stock : INTEGER -- Stock físico consolidado
+  imageUrl : VARCHAR(191)
+  * barcode : VARCHAR(191) <<unique>> -- Código de barras EAN/UPC para cámara
+  * createdAt : TIMESTAMP
+  * updatedAt : TIMESTAMP
+}
+
+entity "InventoryMovement (Movimientos)" as movement {
+  * id : VARCHAR(36) <<PK>>
+  --
+  * type : VARCHAR(50) -- 'entrada' | 'salida'
+  * quantity : INTEGER -- Unidades movilizadas
+  * productId : VARCHAR(36) <<FK>>
+  * userId : VARCHAR(36) <<FK>> -- Responsable de la transacción
+  supplier : VARCHAR(191) -- Obligatorio solo si tipo es 'entrada'
+  * createdAt : TIMESTAMP -- Fecha y hora del movimiento
+}
+
+' Un usuario puede realizar múltiples movimientos de inventario en el almacén
+user ||--o{ movement : "registra"
+
+' Un producto puede estar sujeto a múltiples entradas y salidas de stock
+product ||--o{ movement : "recibe"
+@enduml

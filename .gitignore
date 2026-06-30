@@ -1,0 +1,33 @@
+# Dependencias
+node_modules/
+
+# Entorno y Configuración (Seguridad)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# Producción y Construcción
+dist/
+build/
+out/
+
+# Logs del Sistema y Gestores de Paquetes
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Archivos del Sistema Operativo
+.DS_Store
+.DS_Store?
+._*
+.Thumbs.db
+Thumbs.db
+
+# Generados por Prisma
+/generated/prisma
+

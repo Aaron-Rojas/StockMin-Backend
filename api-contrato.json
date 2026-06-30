@@ -1,0 +1,762 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "StockMin API Communication Contract",
+    "description": "Contrato de comunicación REST entre el Frontend React Native y el Backend Node.js para el sistema StockMin.",
+    "version": "1.0.0",
+    "endpoints": {
+        "auth": {
+            "login": {
+                "path": "/api/auth/login",
+                "method": "POST",
+                "description": "Autentica al empleado y retorna el token JWT junto con su información de perfil básica.",
+                "request": {
+                    "type": "object",
+                    "properties": {
+                        "email": {
+                            "type": "string",
+                            "format": "email",
+                            "description": "Correo electrónico del empleado que inicia sesión."
+                        },
+                        "password": {
+                            "type": "string",
+                            "minLength": 6,
+                            "description": "Contraseña de acceso del empleado."
+                        }
+                    },
+                    "required": [
+                        "email",
+                        "password"
+                    ],
+                    "additionalProperties": false
+                },
+                "response": {
+                    "success": {
+                        "status": 200,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "token": {
+                                    "type": "string",
+                                    "description": "Token JWT generado por el servidor."
+                                },
+                                "user": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "description": "ID único del usuario."
+                                        },
+                                        "email": {
+                                            "type": "string",
+                                            "format": "email",
+                                            "description": "Correo electrónico registrado."
+                                        },
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Nombre completo del usuario."
+                                        },
+                                        "role": {
+                                            "type": "string",
+                                            "enum": [
+                                                "admin",
+                                                "employee"
+                                            ],
+                                            "description": "Rol asignado para el control de acceso."
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "email",
+                                        "name",
+                                        "role"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            },
+                            "required": [
+                                "token",
+                                "user"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "error": {
+                        "status": 401,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string",
+                                    "description": "Mensaje de error descriptivo.",
+                                    "example": "Credenciales inválidas."
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            }
+        },
+        "productos": {
+            "listar": {
+                "path": "/api/productos",
+                "method": "GET",
+                "description": "Obtiene la lista completa de productos del almacén. Requiere token JWT en las cabeceras.",
+                "headers": {
+                    "type": "object",
+                    "properties": {
+                        "Authorization": {
+                            "type": "string",
+                            "pattern": "^Bearer\\s[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_=]+\\.?[A-Za-z0-9-_.+/=]*$",
+                            "description": "Cabecera de autorización Bearer Token conteniendo el JWT."
+                        }
+                    },
+                    "required": [
+                        "Authorization"
+                    ]
+                },
+                "response": {
+                    "success": {
+                        "status": 200,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "description": "ID único de base de datos para el producto."
+                                    },
+                                    "nombre": {
+                                        "type": "string",
+                                        "description": "Nombre comercial del producto."
+                                    },
+                                    "precio": {
+                                        "type": "string",
+                                        "pattern": "^\\d+(\\.\\d{2})?$",
+                                        "description": "Precio decimal del producto en formato de cadena (evitando imprecisiones de flotantes)."
+                                    },
+                                    "stock": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Cantidad física actual disponible en almacén."
+                                    },
+                                    "imagenUrl": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "URL de la imagen del producto para catálogo."
+                                    },
+                                    "codigoBarras": {
+                                        "type": "string",
+                                        "description": "Código de barras único (EAN/UPC) para lectura física mediante cámara."
+                                    }
+                                },
+                                "required": [
+                                    "id",
+                                    "nombre",
+                                    "precio",
+                                    "stock",
+                                    "imagenUrl",
+                                    "codigoBarras"
+                                ],
+                                "additionalProperties": false
+                            }
+                        }
+                    },
+                    "errorUnauthorized": {
+                        "status": 401,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string",
+                                    "description": "Mensaje de error de autenticación.",
+                                    "example": "Token expirado o inválido."
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            },
+            "buscarPorCodigo": {
+                "path": "/api/productos/barcode/{barcode}",
+                "method": "GET",
+                "description": "Busca un producto en el inventario a través de su código de barras (escaneado desde la cámara de la app).",
+                "headers": {
+                    "type": "object",
+                    "properties": {
+                        "Authorization": {
+                            "type": "string",
+                            "pattern": "^Bearer\\s[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_=]+\\.?[A-Za-z0-9-_.+/=]*$",
+                            "description": "Cabecera de autorización con el JWT."
+                        }
+                    },
+                    "required": [
+                        "Authorization"
+                    ]
+                },
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "barcode": {
+                            "type": "string",
+                            "description": "Código de barras leído por la cámara."
+                        }
+                    },
+                    "required": [
+                        "barcode"
+                    ]
+                },
+                "response": {
+                    "success": {
+                        "status": 200,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "nombre": {
+                                    "type": "string"
+                                },
+                                "precio": {
+                                    "type": "string",
+                                    "pattern": "^\\d+(\\.\\d{2})?$"
+                                },
+                                "stock": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                },
+                                "imagenUrl": {
+                                    "type": "string",
+                                    "format": "uri"
+                                },
+                                "codigoBarras": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "nombre",
+                                "precio",
+                                "stock",
+                                "imagenUrl",
+                                "codigoBarras"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "errorNotFound": {
+                        "status": 404,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string",
+                                    "description": "Mensaje informando que el producto no existe en el sistema.",
+                                    "example": "El código de barras no coincide con ningún producto registrado."
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "errorUnauthorized": {
+                        "status": 401,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            },
+            "crear": {
+                "path": "/api/productos",
+                "method": "POST",
+                "description": "Registra un nuevo producto en el almacén. Permite asociar de forma directa el código de barras leído por la cámara.",
+                "headers": {
+                    "type": "object",
+                    "properties": {
+                        "Authorization": {
+                            "type": "string",
+                            "pattern": "^Bearer\\s[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_=]+\\.?[A-Za-z0-9-_.+/=]*$",
+                            "description": "Cabecera de autorización con el JWT."
+                        }
+                    },
+                    "required": [
+                        "Authorization"
+                    ]
+                },
+                "request": {
+                    "type": "object",
+                    "properties": {
+                        "nombre": {
+                            "type": "string",
+                            "minLength": 2,
+                            "description": "Nombre comercial del producto."
+                        },
+                        "precio": {
+                            "type": "string",
+                            "pattern": "^\\d+(\\.\\d{2})?$",
+                            "description": "Precio decimal del producto en formato de cadena."
+                        },
+                        "stock": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Cantidad de stock inicial."
+                        },
+                        "imagenUrl": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "URL de la imagen del producto (opcional, se puede asignar una por defecto)."
+                        },
+                        "codigoBarras": {
+                            "type": "string",
+                            "description": "Código de barras único del producto."
+                        }
+                    },
+                    "required": [
+                        "nombre",
+                        "precio",
+                        "stock",
+                        "codigoBarras"
+                    ],
+                    "additionalProperties": false
+                },
+                "response": {
+                    "success": {
+                        "status": 201,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "nombre": {
+                                    "type": "string"
+                                },
+                                "precio": {
+                                    "type": "string"
+                                },
+                                "stock": {
+                                    "type": "integer"
+                                },
+                                "imagenUrl": {
+                                    "type": "string"
+                                },
+                                "codigoBarras": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "nombre",
+                                "precio",
+                                "stock",
+                                "codigoBarras"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "errorConflict": {
+                        "status": 409,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string",
+                                    "description": "Mensaje de conflicto cuando el código ya está registrado.",
+                                    "example": "El código de barras ingresado ya pertenece a otro producto."
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            },
+            "actualizar": {
+                "path": "/api/productos/{id}",
+                "method": "PUT",
+                "description": "Actualiza la información de un producto registrado por su ID de base de datos (útil para modificar stock o cambiar precios).",
+                "headers": {
+                    "type": "object",
+                    "properties": {
+                        "Authorization": {
+                            "type": "string",
+                            "pattern": "^Bearer\\s[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_=]+\\.?[A-Za-z0-9-_.+/=]*$",
+                            "description": "Cabecera de autorización con el JWT."
+                        }
+                    },
+                    "required": [
+                        "Authorization"
+                    ]
+                },
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "description": "ID del producto en la base de datos."
+                        }
+                    },
+                    "required": [
+                        "id"
+                    ]
+                },
+                "request": {
+                    "type": "object",
+                    "properties": {
+                        "nombre": {
+                            "type": "string"
+                        },
+                        "precio": {
+                            "type": "string",
+                            "pattern": "^\\d+(\\.\\d{2})?$"
+                        },
+                        "stock": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "imagenUrl": {
+                            "type": "string",
+                            "format": "uri"
+                        },
+                        "codigoBarras": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "response": {
+                    "success": {
+                        "status": 200,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "nombre": {
+                                    "type": "string"
+                                },
+                                "precio": {
+                                    "type": "string"
+                                },
+                                "stock": {
+                                    "type": "integer"
+                                },
+                                "imagenUrl": {
+                                    "type": "string"
+                                },
+                                "codigoBarras": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "nombre",
+                                "precio",
+                                "stock",
+                                "codigoBarras"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "errorNotFound": {
+                        "status": 404,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string",
+                                    "description": "Mensaje indicando que el ID no corresponde a ningún producto.",
+                                    "example": "Producto no encontrado para actualización."
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            }
+        },
+        "movimientos": {
+            "listar": {
+                "path": "/api/movimientos",
+                "method": "GET",
+                "description": "Obtiene la lista de movimientos de inventario agrupados por fecha (fechaDia, fechaMes). Soporta filtro por tipo de movimiento (entrada o salida). Requiere token JWT en las cabeceras.",
+                "headers": {
+                    "type": "object",
+                    "properties": {
+                        "Authorization": {
+                            "type": "string",
+                            "pattern": "^Bearer\\s[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_=]+\\.?[A-Za-z0-9-_.+/=]*$",
+                            "description": "Cabecera de autorización Bearer Token conteniendo el JWT."
+                        }
+                    },
+                    "required": [
+                        "Authorization"
+                    ]
+                },
+                "query": {
+                    "type": "object",
+                    "properties": {
+                        "tipo": {
+                            "type": "string",
+                            "enum": [
+                                "entrada",
+                                "salida"
+                            ],
+                            "description": "Filtro para listar solo entradas o solo salidas."
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "response": {
+                    "success": {
+                        "status": 200,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "fechaDia": {
+                                        "type": "string",
+                                        "description": "Día relativo (ej: 'Hoy', 'Ayer', 'Lunes')."
+                                    },
+                                    "fechaMes": {
+                                        "type": "string",
+                                        "description": "Día y mes formateado (ej: '22 de Abril')."
+                                    },
+                                    "cantidadTotal": {
+                                        "type": "string",
+                                        "description": "Suma total de productos movilizados ese día en formato string."
+                                    },
+                                    "productos": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "nombre": {
+                                                    "type": "string",
+                                                    "description": "Nombre del producto movilizado."
+                                                },
+                                                "cantidad": {
+                                                    "type": "string",
+                                                    "description": "Cantidad de productos del movimiento."
+                                                },
+                                                "hora": {
+                                                    "type": "string",
+                                                    "description": "Hora formateada del movimiento (ej: '16:35 pm')."
+                                                }
+                                            },
+                                            "required": [
+                                                "nombre",
+                                                "cantidad",
+                                                "hora"
+                                            ],
+                                            "additionalProperties": false
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "fechaDia",
+                                    "fechaMes",
+                                    "cantidadTotal",
+                                    "productos"
+                                ],
+                                "additionalProperties": false
+                            }
+                        }
+                    },
+                    "errorUnauthorized": {
+                        "status": 401,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string",
+                                    "description": "Mensaje de error de autenticación.",
+                                    "example": "Token expirado o inválido."
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            },
+            "crear": {
+                "path": "/api/movimientos",
+                "method": "POST",
+                "description": "Registra una nueva transacción de movimiento (entrada o salida) para un producto. Captura el ID del usuario directamente desde el JWT en las cabeceras.",
+                "headers": {
+                    "type": "object",
+                    "properties": {
+                        "Authorization": {
+                            "type": "string",
+                            "pattern": "^Bearer\\s[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_=]+\\.?[A-Za-z0-9-_.+/=]*$",
+                            "description": "Cabecera de autorización Bearer Token conteniendo el JWT."
+                        }
+                    },
+                    "required": [
+                        "Authorization"
+                    ]
+                },
+                "request": {
+                    "type": "object",
+                    "properties": {
+                        "tipo": {
+                            "type": "string",
+                            "enum": [
+                                "entrada",
+                                "salida"
+                            ],
+                            "description": "Tipo de movimiento de inventario."
+                        },
+                        "cantidad": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "Cantidad de unidades a mover (ingresar/vender)."
+                        },
+                        "productoId": {
+                            "type": "string",
+                            "description": "ID del producto al que se le aplica el movimiento."
+                        },
+                        "proveedor": {
+                            "type": "string",
+                            "description": "Nombre del proveedor (obligatorio para entrada/ingreso)."
+                        }
+                    },
+                    "required": [
+                        "tipo",
+                        "cantidad",
+                        "productoId"
+                    ],
+                    "additionalProperties": false
+                },
+                "response": {
+                    "success": {
+                        "status": 201,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "ID del movimiento registrado en la base de datos."
+                                },
+                                "tipo": {
+                                    "type": "string",
+                                    "enum": [
+                                        "entrada",
+                                        "salida"
+                                    ]
+                                },
+                                "cantidad": {
+                                    "type": "integer"
+                                },
+                                "productoId": {
+                                    "type": "string"
+                                },
+                                "usuarioId": {
+                                    "type": "string",
+                                    "description": "ID del usuario autenticado que realiza el movimiento (extraído del token)."
+                                },
+                                "proveedor": {
+                                    "type": "string",
+                                    "description": "Proveedor asociado al movimiento (solo en entradas)."
+                                },
+                                "fecha": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "description": "Fecha y hora en que se registró el movimiento."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "tipo",
+                                "cantidad",
+                                "productoId",
+                                "usuarioId",
+                                "fecha"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "errorBadRequest": {
+                        "status": 400,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string",
+                                    "description": "Descripción del error (ej. stock insuficiente para una salida).",
+                                    "example": "Stock insuficiente para realizar la venta."
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "errorNotFound": {
+                        "status": 404,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string",
+                                    "description": "El producto especificado no existe."
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "errorUnauthorized": {
+                        "status": 401,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "error"
+                            ],
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

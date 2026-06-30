@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Modelo que representa a los empleados y administradores del sistema.
+model User {
+  id        String              @id @default(uuid())
+  email     String              @unique
+  password  String              // Guardado cifrado usando hash (bcrypt)
+  name      String
+  role      String              @default("employee") // Roles: 'admin', 'employee'
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  
+  // Relación uno a muchos: Un usuario puede registrar múltiples movimientos de stock
+  movements InventoryMovement[]
+
+  @@map("users")
+}
+
+/// Modelo para el catálogo de productos disponibles en el inventario.
+model Product {
+  id           String              @id @default(uuid())
+  name         String
+  // Se utiliza tipo Decimal para evitar imprecisiones aritméticas flotantes en precios
+  price        Decimal             @db.Decimal(10, 2)
+  stock        Int                 @default(0) // Stock actual físico
+  imageUrl     String?
+  barcode      String              @unique // EAN/UPC único para la lectura con cámara del móvil
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  
+  // Relación uno a muchos: Un producto puede tener un historial de varios movimientos
+  movements InventoryMovement[]
+
+  @@map("products")
+}
+
+/// Modelo para registrar las transacciones de entrada (ingresos) y salida (ventas/mermas) de stock.
+model InventoryMovement {
+  id         String   @id @default(uuid())
+  type       String   // Valores restringidos en lógica: 'entrada', 'salida'
+  quantity   Int      // Cantidad de unidades físicas movilizadas en la transacción
+  productId  String
+  userId     String
+  supplier   String?  // Nombre del proveedor (obligatorio únicamente en ingresos/'entrada')
+  createdAt  DateTime @default(now())
+
+  // Se aplica 'onDelete: Restrict' en la relación del producto para asegurar que no se puedan eliminar 
+  // productos que contengan movimientos registrados, preservando así la integridad del historial de auditoría.
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  
+  // Se aplica 'onDelete: Restrict' para prevenir la eliminación de un usuario si este tiene 
+  // transacciones firmadas en el historial de movimientos de almacén.
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("inventory_movements")
+}
