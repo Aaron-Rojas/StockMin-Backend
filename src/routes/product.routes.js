@@ -113,15 +113,54 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    const newProduct = await prisma.product.create({
-      data: {
-        name: nombre,
-        price: precio,
-        stock: parseInt(stock, 10),
-        imageUrl: imagenUrl || null,
-        barcode: codigoBarras,
-      },
-    });
+    // Inicia lógica refactorizada para integridad referencial de inventario
+    const parsedStock = parseInt(stock, 10);
+    let newProduct;
+
+    if (parsedStock > 0) {
+      // ANÁLISIS CRÍTICO DE FALLOS Y ENFOQUE PEDAGÓGICO:
+      // Anteriormente, crear un producto con existencias (stock > 0) sin registrar su movimiento inicial
+      // correspondiente rompía la trazabilidad del inventario y violaba la consistencia del sistema (auditoría).
+      // Además, realizar dos operaciones asíncronas separadas sin una transacción exponía la BD a estados inconsistentes
+      // si alguna operación fallaba a mitad de camino.
+      // CÓMO Y POR QUÉ: Se utiliza prisma.$transaction (transacción interactiva) para asegurar que la creación del producto
+      // y su correspondiente movimiento de entrada inicial ocurran de manera atómica (ambos o ninguno).
+      newProduct = await prisma.$transaction(async (tx) => {
+        const product = await tx.product.create({
+          data: {
+            name: nombre,
+            price: precio,
+            stock: parsedStock,
+            imageUrl: imagenUrl || null,
+            barcode: codigoBarras,
+          },
+        });
+
+        await tx.inventoryMovement.create({
+          data: {
+            type: 'entrada',
+            quantity: parsedStock,
+            productId: product.id,
+            userId: req.user.id,
+            supplier: 'Inventario Inicial',
+          },
+        });
+
+        return product;
+      });
+    } else {
+      // Si el stock inicial es 0, no es necesario generar un movimiento de entrada ('Inventario Inicial').
+      // Se crea el producto directamente sin transacción adicional para optimizar el rendimiento.
+      newProduct = await prisma.product.create({
+        data: {
+          name: nombre,
+          price: precio,
+          stock: 0,
+          imageUrl: imagenUrl || null,
+          barcode: codigoBarras,
+        },
+      });
+    }
 
     return res.status(201).json(formatProductResponse(newProduct));
   } catch (error) {
