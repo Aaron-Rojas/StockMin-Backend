@@ -96,9 +96,11 @@ Asegurar que la API cumple con el contrato JSON y se comporta según lo previsto
 ## Fase 7: Dockerización y Despliegue en la Nube ☁️🚀
 Llevar la aplicación a un entorno productivo estable y auto-contenido.
 
-- [ ] **7.1. Dockerización**:
-  - Escribir un archivo `Dockerfile` optimizado para empaquetar el servidor Node.js.
-  - Escribir un archivo `docker-compose.yml` para levantar la aplicación y una base de datos PostgreSQL local en contenedores rápidos.
+- [x] **7.1. Dockerización del Backend**:
+  - Configurar un archivo `.dockerignore` robusto para omitir dependencias y configuraciones locales.
+  - Diseñar un `Dockerfile` optimizado utilizando builds multi-etapa (multi-stage) en base a Node-Alpine.
+- [x] **7.2. Configuración de Pipeline CI/CD**:
+  - Configurar un flujo automatizado en GitHub Actions (`.github/workflows/deploy.yml`) para compilar, generar el cliente de Prisma, ejecutar tests y gatillar el despliegue automático mediante Webhook.
 - [ ] **7.2. Proveedor Cloud**:
   - Seleccionar un proveedor PaaS como **Render** o **Railway** para el despliegue del servidor.
   - Configurar una instancia de PostgreSQL gestionada en la nube.
