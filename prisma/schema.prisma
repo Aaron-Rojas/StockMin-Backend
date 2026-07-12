@@ -1,62 +1,71 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-/// Modelo que representa a los empleados y administradores del sistema.
-model User {
-  id        String              @id @default(uuid())
-  email     String              @unique
-  password  String              // Guardado cifrado usando hash (bcrypt)
-  name      String
-  role      String              @default("employee") // Roles: 'admin', 'employee'
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
-  
-  // Relación uno a muchos: Un usuario puede registrar múltiples movimientos de stock
-  movements InventoryMovement[]
-
-  @@map("users")
+// 1. Sesión y Seguridad (Simplificado, sin roles)
+model Usuario {
+  id       String  @id @default(uuid())
+  email    String  @unique
+  password String
+  nombre   String
 }
 
-/// Modelo para el catálogo de productos disponibles en el inventario.
-model Product {
-  id           String              @id @default(uuid())
-  name         String
-  // Se utiliza tipo Decimal para evitar imprecisiones aritméticas flotantes en precios
-  price        Decimal             @db.Decimal(10, 2)
-  stock        Int                 @default(0) // Stock actual físico
-  imageUrl     String?
-  barcode      String              @unique // EAN/UPC único para la lectura con cámara del móvil
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  
-  // Relación uno a muchos: Un producto puede tener un historial de varios movimientos
-  movements InventoryMovement[]
-
-  @@map("products")
+// 2. El Catálogo Estático (Físico)
+model Producto {
+  id           Int            @id @default(autoincrement())
+  nombre       String
+  precioBase   Decimal        @db.Decimal(10, 2)
+  codigoBarras String         @unique
+  categoria    String?
+  imagenUrl    String?
+  stockMinimo  Int            @default(5)
+  // Relaciones
+  lotes        Lote[]
+  detalles     DetalleVenta[]
 }
 
-/// Modelo para registrar las transacciones de entrada (ingresos) y salida (ventas/mermas) de stock.
-model InventoryMovement {
-  id         String   @id @default(uuid())
-  type       String   // Valores restringidos en lógica: 'entrada', 'salida'
-  quantity   Int      // Cantidad de unidades físicas movilizadas en la transacción
-  productId  String
-  userId     String
-  supplier   String?  // Nombre del proveedor (obligatorio únicamente en ingresos/'entrada')
-  createdAt  DateTime @default(now())
+// 3. El Inventario Real (Gestión de Mermas y Fechas)
+model Lote {
+  id                 Int       @id @default(autoincrement())
+  productoId         Int
+  cantidadDisponible Int
+  fechaVencimiento   DateTime? // Opcional, por si venden cosas que no caducan (ej. detergente)
+  fechaIngreso       DateTime  @default(now())
+  // Relaciones
+  producto           Producto  @relation(fields: [productoId], references: [id])
+}
 
-  // Se aplica 'onDelete: Restrict' en la relación del producto para asegurar que no se puedan eliminar 
-  // productos que contengan movimientos registrados, preservando así la integridad del historial de auditoría.
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
-  
-  // Se aplica 'onDelete: Restrict' para prevenir la eliminación de un usuario si este tiene 
-  // transacciones firmadas en el historial de movimientos de almacén.
-  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+// 4. La Cabecera de la Venta (El Ticket)
+model Venta {
+  id         Int            @id @default(autoincrement())
+  fechaHora  DateTime       @default(now())
+  totalVenta Decimal        @db.Decimal(10, 2)
+  metodoPago String         // Guardará "Efectivo" o "Yape"
+  // Relaciones
+  detalles   DetalleVenta[]
+}
 
-  @@map("inventory_movements")
+// 5. El Detalle (Inmutabilidad Histórica)
+model DetalleVenta {
+  id                      Int      @id @default(autoincrement())
+  ventaId                 Int
+  productoId              Int
+  cantidadVendida         Int
+  precioUnitarioCongelado Decimal  @db.Decimal(10, 2)
+  // Relaciones
+  venta                   Venta    @relation(fields: [ventaId], references: [id])
+  producto                Producto @relation(fields: [productoId], references: [id])
+}
+
+// 6. Auditoría y Logs (Automático)
+model Movimiento {
+  id          Int      @id @default(autoincrement())
+  tipo        String   // Ej: "INGRESO_LOTE", "VENTA", "MERMA"
+  descripcion String   // Ej: "Ingresaron 10x Oreo", "Venta Ticket #4"
+  fecha       DateTime @default(now())
 }

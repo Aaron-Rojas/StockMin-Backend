@@ -5,6 +5,8 @@ import compression from 'compression';
 import authRouter from './routes/auth.routes.js';
 import productRouter from './routes/product.routes.js';
 import movementRouter from './routes/movement.routes.js';
+import lotRouter from './routes/lote.routes.js';
+import ventaRouter from './routes/venta.routes.js';
 
 const app = express();
 
@@ -24,6 +26,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/productos', productRouter);
 app.use('/api/movimientos', movementRouter);
+app.use('/api/lotes', lotRouter);
+app.use('/api/ventas', ventaRouter);
 
 // Manejador global de errores (Modificado temporalmente para depuración)
 app.use((err, req, res, next) => {

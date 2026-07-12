@@ -11,6 +11,9 @@
     "db:studio": "prisma studio",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

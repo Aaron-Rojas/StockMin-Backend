@@ -1,49 +1,16 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { prisma } from '../db.js';
+import { register, login } from '../controllers/auth.controller.js';
 
 const router = Router();
 
-router.post('/login', async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
+// ANÁLISIS CRÍTICO DE FALLOS Y ENFOQUE PEDAGÓGICO:
+// Anteriormente, la lógica de login e interacciones de base de datos residían directamente inline
+// en este archivo. Además, carecía de un endpoint para registro de usuarios comerciales.
+// CÓMO Y POR QUÉ: Se refactoriza delegando el flujo de negocio al controlador auth.controller.js.
+// Se exponen de manera pública los endpoints de registro y login (POST /register y POST /login),
+// de modo que no pasen por el middleware global de verificación de JWT.
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'El correo electrónico y la contraseña son requeridos.' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (!user) {
-      return res.status(401).json({ error: 'Credenciales inválidas.' });
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Credenciales inválidas.' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    return res.status(200).json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    });
-  } catch (error) {
-    return next(error);
-  }
-});
+router.post('/register', register);
+router.post('/login', login);
 
 export default router;
