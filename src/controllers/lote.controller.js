@@ -1,8 +1,7 @@
 import { prisma } from '../db.js';
 
 /**
- * GET /api/lotes
- * Lista todos los lotes activos (cantidadDisponible > 0) con la información de su producto asociado.
+ * Obtiene la lista completa de lotes activos (cantidadDisponible > 0).
  */
 export const getLots = async (req, res, next) => {
   try {
@@ -23,8 +22,8 @@ export const getLots = async (req, res, next) => {
 };
 
 /**
- * GET /api/lotes/producto/:productoId
- * Lista los lotes activos de un producto específico, ordenados por proximidad de vencimiento (PEPS).
+ * Recupera los lotes activos de un producto particular ordenados cronológicamente por vencimiento (PEPS).
+ * Params: productoId
  */
 export const getLotsByProduct = async (req, res, next) => {
   try {
@@ -43,7 +42,7 @@ export const getLotsByProduct = async (req, res, next) => {
         cantidadDisponible: { gt: 0 }
       },
       orderBy: {
-        fechaVencimiento: 'asc' // Prioridad PEPS (los más antiguos/por vencer primero)
+        fechaVencimiento: 'asc'
       }
     });
 
@@ -54,14 +53,13 @@ export const getLotsByProduct = async (req, res, next) => {
 };
 
 /**
- * POST /api/lotes
- * Registra un nuevo lote de producto físico e ingresa el movimiento de auditoría transaccionalmente.
+ * Registra un nuevo lote de producto físico y registra su ingreso en auditoría.
+ * Body: { productoId, cantidadDisponible, fechaVencimiento }
  */
 export const createLot = async (req, res, next) => {
   try {
     const { productoId, cantidadDisponible, fechaVencimiento } = req.body;
 
-    // Validación básica de campos requeridos
     if (productoId === undefined || cantidadDisponible === undefined) {
       return res.status(400).json({
         error: 'El productoId y la cantidadDisponible son campos obligatorios.'
@@ -83,7 +81,6 @@ export const createLot = async (req, res, next) => {
       });
     }
 
-    // Verificar que el producto exista
     const product = await prisma.producto.findUnique({
       where: { id: prodId }
     });
@@ -94,7 +91,6 @@ export const createLot = async (req, res, next) => {
       });
     }
 
-    // Parsear fecha de vencimiento si se provee
     const expirationDate = fechaVencimiento ? new Date(fechaVencimiento) : null;
     if (fechaVencimiento && isNaN(expirationDate.getTime())) {
       return res.status(400).json({
@@ -102,12 +98,6 @@ export const createLot = async (req, res, next) => {
       });
     }
 
-    // ANÁLISIS CRÍTICO DE FALLOS Y ENFOQUE PEDAGÓGICO:
-    // Anteriormente, crear registros físicos de almacén e insertar bitácoras de auditoría se hacía de forma separada.
-    // Si la creación del movimiento de auditoría fallaba por red o base de datos, el lote se creaba sin dejar rastro en el historial,
-    // rompiendo la trazabilidad financiera del minimarket.
-    // CÓMO Y POR QUÉ: Se utiliza prisma.$transaction para garantizar la atomicidad de ambas escrituras.
-    // Si cualquiera de las dos operaciones falla, se realiza un rollback automático de la base de datos.
     const result = await prisma.$transaction(async (tx) => {
       const lot = await tx.lote.create({
         data: {
@@ -138,8 +128,8 @@ export const createLot = async (req, res, next) => {
 };
 
 /**
- * POST /api/lotes/:id/merma
- * Declara merma completa de un lote físico (cantidadDisponible = 0) de forma transaccional.
+ * Da de baja por completo un lote y genera el registro de merma correspondiente.
+ * Params: id
  */
 export const registerLotMerma = async (req, res, next) => {
   try {
@@ -152,7 +142,6 @@ export const registerLotMerma = async (req, res, next) => {
       });
     }
 
-    // Buscar el lote e incluir el producto para obtener su nombre comercial
     const lot = await prisma.lote.findUnique({
       where: { id: lotId },
       include: { producto: true }
@@ -172,8 +161,6 @@ export const registerLotMerma = async (req, res, next) => {
 
     const previousQty = lot.cantidadDisponible;
 
-    // CÓMO Y POR QUÉ: Usamos prisma.$transaction para asegurar que la reducción del lote físico a cero
-    // y el registro de bitácora tipo 'MERMA' ocurran de manera atómica, impidiendo pérdidas de stock indocumentadas.
     const result = await prisma.$transaction(async (tx) => {
       const updatedLot = await tx.lote.update({
         where: { id: lotId },

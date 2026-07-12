@@ -1,15 +1,14 @@
 import { prisma } from '../db.js';
 
 /**
- * POST /api/ventas
  * Registra una venta en el POS de forma atómica. Descuenta stock de lotes bajo método PEPS (FIFO),
- * congela los precios unitarios e inserta el log de auditoría.
+ * congela los precios unitarios de venta e ingresa la auditoría del ticket.
+ * Body: { detalles: [{ productoId, cantidad }], metodoPago }
  */
 export const createSale = async (req, res, next) => {
   try {
     const { detalles, metodoPago } = req.body;
 
-    // VALIDACIONES DE ENTRADA (SRP)
     if (!metodoPago || !detalles || !Array.isArray(detalles) || detalles.length === 0) {
       return res.status(400).json({
         error: 'El método de pago y los detalles del carrito de compras son obligatorios.'
@@ -22,14 +21,6 @@ export const createSale = async (req, res, next) => {
       });
     }
 
-    // ANÁLISIS CRÍTICO DE FALLOS Y ENFOQUE PEDAGÓGICO:
-    // Registrar una venta involucra múltiples consultas de stock, actualizaciones de lotes,
-    // inserciones de cabecera/detalle y escrituras en la bitácora de auditoría.
-    // Realizarlas como llamadas asíncronas sueltas exponía la base de datos a estados inconsistentes
-    // (por ejemplo, restar stock de lotes pero que falle la creación de la Venta, dejando stock fantasma).
-    // CÓMO Y POR QUÉ: Se utiliza prisma.$transaction interactivo para ejecutar todo el flujo
-    // de forma atómica. Cualquier excepción arrojada dentro del callback abortará la transacción
-    // completa, revirtiendo todas las escrituras y garantizando consistencia absoluta (ACID).
     const result = await prisma.$transaction(async (tx) => {
       let totalVenta = 0;
       const detailsToCreate = [];
@@ -49,7 +40,6 @@ export const createSale = async (req, res, next) => {
           throw new Error('INVALID_QUANTITY');
         }
 
-        // 1. Obtener producto y verificar existencia
         const product = await tx.producto.findUnique({
           where: { id: prodId }
         });
@@ -58,9 +48,6 @@ export const createSale = async (req, res, next) => {
           throw new Error(`PRODUCT_NOT_FOUND:${prodId}`);
         }
 
-        // 2. Obtener lotes activos (cantidadDisponible > 0)
-        // CÓMO Y POR QUÉ: Se ordenan por fechaVencimiento ASC (PEPS) para despachar los que expiran antes.
-        // Se añade fechaIngreso ASC como criterio de desempate para lotes con vencimientos idénticos o nulos (FIFO).
         const activeLots = await tx.lote.findMany({
           where: {
             productoId: prodId,
@@ -72,26 +59,22 @@ export const createSale = async (req, res, next) => {
           ]
         });
 
-        // 3. Verificar stock acumulado total
         const totalAvailableStock = activeLots.reduce((sum, lot) => sum + lot.cantidadDisponible, 0);
         if (totalAvailableStock < qty) {
           throw new Error(`INSUFFICIENT_STOCK:${product.nombre}:${qty}:${totalAvailableStock}`);
         }
 
-        // 4. Descontar stock aplicando algoritmo PEPS
         let remainingToDeduct = qty;
         for (const lot of activeLots) {
           if (remainingToDeduct <= 0) break;
 
           if (lot.cantidadDisponible >= remainingToDeduct) {
-            // El lote cubre el total requerido restante
             await tx.lote.update({
               where: { id: lot.id },
               data: { cantidadDisponible: lot.cantidadDisponible - remainingToDeduct }
             });
             remainingToDeduct = 0;
           } else {
-            // El lote se agota completamente
             remainingToDeduct -= lot.cantidadDisponible;
             await tx.lote.update({
               where: { id: lot.id },
@@ -100,7 +83,6 @@ export const createSale = async (req, res, next) => {
           }
         }
 
-        // 5. Inmutabilidad de precios: Congelar precio unitario histórico
         const subtotal = qty * parseFloat(product.precioBase);
         totalVenta += subtotal;
 
@@ -113,7 +95,6 @@ export const createSale = async (req, res, next) => {
         itemsSummaryList.push(`${product.nombre} (x${qty})`);
       }
 
-      // 6. Crear Cabecera de la Venta
       const sale = await tx.venta.create({
         data: {
           totalVenta,
@@ -121,7 +102,6 @@ export const createSale = async (req, res, next) => {
         }
       });
 
-      // 7. Crear los registros en DetalleVenta vinculados al ID de venta
       const createdDetails = [];
       for (const detail of detailsToCreate) {
         const d = await tx.detalleVenta.create({
@@ -135,7 +115,6 @@ export const createSale = async (req, res, next) => {
         createdDetails.push(d);
       }
 
-      // 8. Registrar Movimiento descriptivo de auditoría tipo VENTA
       const itemsDescription = itemsSummaryList.join(', ');
       await tx.movimiento.create({
         data: {
@@ -160,7 +139,6 @@ export const createSale = async (req, res, next) => {
 
     return res.status(201).json(result);
   } catch (error) {
-    // Manejo de errores específicos lanzados dentro de la transacción para responder adecuadamente
     if (error.message === 'INVALID_PRODUCT_ID') {
       return res.status(400).json({ error: 'Uno o más productoId no son números enteros válidos.' });
     }
